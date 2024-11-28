@@ -1,28 +1,46 @@
-#(©)CodeXBotz
+import asyncpg
+import os
+from config import DB_URI
 
-import pymongo, os
-from config import DB_URI, DB_NAME
+# Fungsi untuk membuat koneksi ke NeonDB
+async def get_db_connection():
+    try:
+        conn = await asyncpg.connect(DB_URI)
+        return conn
+    except Exception as e:
+        print(f"Error connecting to the database: {e}")
+        return None
 
-dbclient = pymongo.MongoClient(DB_URI)
-database = dbclient[DB_NAME]
-user_data = database['users']
+# Fungsi untuk memeriksa apakah pengguna sudah ada
+async def present_user(user_id: int):
+    conn = await get_db_connection()
+    if conn:
+        result = await conn.fetchrow("SELECT 1 FROM users WHERE user_id = $1", user_id)
+        await conn.close()
+        return bool(result)
+    return False
 
-async def present_user(user_id : int):
-    found = user_data.find_one({'_id': user_id})
-    return bool(found)
-
+# Fungsi untuk menambahkan pengguna baru
 async def add_user(user_id: int):
-    user_data.insert_one({'_id': user_id})
-    return
+    conn = await get_db_connection()
+    if conn:
+        await conn.execute("INSERT INTO users (user_id) VALUES ($1)", user_id)
+        await conn.close()
 
+# Fungsi untuk mengambil seluruh daftar pengguna
 async def full_userbase():
-    user_docs = user_data.find()
-    user_ids = []
-    for doc in user_docs:
-        user_ids.append(doc['_id'])
-        
-    return user_ids
+    conn = await get_db_connection()
+    if conn:
+        user_docs = await conn.fetch("SELECT user_id FROM users")
+        user_ids = [doc['user_id'] for doc in user_docs]
+        await conn.close()
+        return user_ids
+    return []
 
+# Fungsi untuk menghapus pengguna
 async def del_user(user_id: int):
-    user_data.delete_one({'_id': user_id})
-    return
+    conn = await get_db_connection()
+    if conn:
+        await conn.execute("DELETE FROM users WHERE user_id = $1", user_id)
+        await conn.close()
+    
